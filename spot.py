@@ -1,5 +1,6 @@
 import __main__
 import re
+from datetime import datetime
  
 class Spot(): 
      
@@ -10,7 +11,7 @@ class Spot():
         # self.qrg = line[colon + 1 : period + 2].strip()
         self.qrg = re.findall("\d+\.\d+", line.partition(":")[2])[0]
         # print(node + ':' + 'Line=" + line)
-        print(node + ': part=' + line.partition(":")[2])
+        # print(node + ': part=' + line.partition(":")[2])
         
         self.callsign = re.findall("[A-Z0-9\/]+[A-Z][A-Z0-9\/]+", line.partition(":")[2])[0]
         # print(node + ': call=' + self.callsign)
@@ -41,6 +42,7 @@ class Spot():
                 self.quality = 'C'
         else:
             self.quality = 'N'
+        self.time = datetime.utcnow()
          
     def toString(self):
         return f'{self.time} {self.qrg} {self.corrected} de {self.spotter} Q={self.quality}'

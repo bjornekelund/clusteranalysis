@@ -73,6 +73,7 @@ class w9pa(threading.Thread):
         connected = False
         host = 'dxc.w9pa.net'
         port = 7373
+        node = 'W9PA'
         server = (host, port)
         while not connected:
             print(colored(f'Connection to: {host} {port}', 'blue'))
@@ -91,17 +92,13 @@ class w9pa(threading.Thread):
                 for line in clxmsg.splitlines():
                     if line.upper().startswith('DX DE '):
                         #SPOT
-                        spot = Spot(line, 'W9PA')
-                        print(spot.toString())
+                        spot = Spot(line, node)
+                        print(node + ': ' + spot.toString())
                     else:
                         print(colored(line, 'yellow'))
                         if 'login' in line.lower() or 'enter your call' in line.lower():
                             print('Sending call')
                             sendCmd(clxsock, MYCALL + '\n')
-                            # sendCmd("set/name Bjorn\n")
-                            # sendCmd("set/QTH Bjarred\n")
-                            # sendCmd("set/QRA JO65mr\n")
-                            # sendCmd("set/nobell\n")
                             # sendCmd(clxsock, "set dx extension skimmerquality\n")                         
             except KeyboardInterrupt:
                 sendCmd(clxsock, "BYE\n")
@@ -118,6 +115,7 @@ class rbn(threading.Thread):
         clxsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         connected = False
         host = 'telnet.reversebeacon.net'
+        node = 'RBN'
         port = 7000
         server = (host, port)
         while not connected:
@@ -137,8 +135,8 @@ class rbn(threading.Thread):
                 for line in clxmsg.splitlines():
                     if line.upper().startswith('DX DE '):
                         #SPOT
-                        spot = Spot(line, 'EBN')
-                        print(spot.toString())
+                        spot = Spot(line, node)
+                        print(node + ': ' + spot.toString())
                     else:
                         print(colored(line, 'yellow'))
                         if 'login' in line.lower() or 'enter your call' in line.lower():
@@ -158,13 +156,13 @@ if __name__ == '__main__':
     # Thread(target = run1('dxc.w9pa.net', 7373, 'W9PA', clxsock1)).start()
     # Thread(target = run2('telnet.reversebeacon.net', 7000, 'RBN', clxsock2)).start()
     
-    # thread1 = w9pa()
-    # thread1.start()
-    # thread1.join()
+    thread1 = w9pa()
+    thread1.start()
+#    thread1.join()
 
     thread2 = rbn()
     thread2.start()
-    thread2.join()
+    # thread2.join()
 
     # threads = []
     # print('Starting W9PA')
