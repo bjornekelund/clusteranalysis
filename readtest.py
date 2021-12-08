@@ -9,15 +9,18 @@ import re
 import telnetlib
  
 MYCALL = 'SM7IUN-7'
-SIZE = 1024
-LOOKBACK = 5
+SIZE = 2048
+LOOKBACK = 128
 POINTER = 0
 FIFO = []
  
 def sendCmd(socket, txt):
     txt = txt + '\n'
     socket.send(txt.encode())     
-    
+
+def wrap(number):
+    return (number + SIZE) % SIZE
+
 class w9pa(threading.Thread):
 
     def __init__(self):
@@ -41,27 +44,33 @@ class w9pa(threading.Thread):
                 if line.upper().startswith('DX DE '):
                     spot = Spot(line, node)
                     # print(node + ': ' + spot.toString())
-                    POINTER = (POINTER + 1) % SIZE 
                     FIFO[POINTER] = spot
-                    print(node + ': FIFO[' + str(POINTER) + '] = ' + FIFO[POINTER].toString())
+                    # print(node + ': FIFO[' + str(POINTER) + '] = ' + FIFO[POINTER].toString())
+                    POINTER = wrap(POINTER + 1)
                     if (not alerted):
-                        print("W9PA feed active")
+                        print(node + " feed active")
                         alerted = True
-                    # rbnspot = FIFO[(POINTER + SIZE - LOOKBACK) % SIZE]
-                    # if (not rbnspot.empty):
-                        # foundvalid = False
-                        # foundquestion = False
-                        # for i in range(SIZE):
-                            # if (not FIFO[i].empty):
-                                # if (rbnspot.callsign == FIFO[i].callsign):
-                                    # if (rbnspot.qrg - FIFO[i].qrg < 0.2):
-                                        # foundquestion = foundquestion or FIFO[i].quality == '?'
-                                        # foundvalid = foundvalid or FIFO[i].quality == 'V'
-                                        # if (not foundvalid and not foundqsy and not foundquestion):
-                                            # print('Not found in curated cluster feed: ' + rbnspot.toString())
+
+                    qspot = FIFO[wrap(POINTER - LOOKBACK - 1)]
+                    if not qspot.empty and qspot.quality == '?':
+                        # print('qspot = ' + qspot.toString())
+                        found = False
+                        # Loop from LOOKBACK back to most recent spot
+                        for i in range(POINTER - LOOKBACK - 2, POINTER - 1, 1):
+                            iw = wrap(i)
+                            if not FIFO[iw].empty and qspot.callsign == FIFO[iw].callsign and \
+                                    abs(qspot.qrg - FIFO[iw].qrg) < 0.2 and FIFO[iw].quality == 'V':
+                                deltatime = round((FIFO[iw].timestamp - qspot.timestamp).total_seconds(), 1)
+                                found = True
+                                break
+                        if found:
+                            print(node + ' ? spot became valid after ' + str(deltatime) + 's ==> ' + qspot.toString())                            
+                        else:
+                            print(node + ' ? spot never became valid      ==> ' + qspot.toString())                            
+                            
             except Exception as e:
-                print('W9PA thread exception')
-                print(e)
+                # print(node + ' thread exception')
+                # print(e)
                 exit()
     
 if __name__ == '__main__':
@@ -70,8 +79,6 @@ if __name__ == '__main__':
     print('Created array, opening telnet')
 
     tw9pa = telnetlib.Telnet('dxc.w9pa.net', 7373, 5)
-    print('Opened w9pa:')
-    print(tw9pa)
 
     thread1 = w9pa()
     thread1.start()
