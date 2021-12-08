@@ -7,6 +7,7 @@ class Spot():
     def __init__(self, line, node):
         self.empty = line == ''
         if (not self.empty):
+            # print('Spot line: "' + line + '"')
             self.txt = line
             colon, period = line.find(":"), line.find(".")
             self.spotter = line[6 : colon]
@@ -25,6 +26,7 @@ class Spot():
                     # self.callsign = line[s + 1 : e - 1]
             # self.callsign = line[period + 3 : 39].strip()
             # Time
+            self.time = '0000'
             for mat in re.finditer(" \d\d\d\d[zZ]", line):
                 s2 = mat.start()
                 e2 = mat.end()
@@ -44,8 +46,19 @@ class Spot():
                     self.quality = 'C'
             else:
                 self.quality = 'N'
-            self.time = datetime.utcnow()
+            self.timestamp = datetime.utcnow()
             self.origin = node
+            self.found = False
+        else:
+            self.quality = 'N'
+            self.spotter = ''
+            self.txt = ''
+            self.callsign = ''
+            self.corrected = ''
+            self.time = ''
+            self.qrg = ''
+            self.timestamp = datetime.utcnow()
+            self.origin = ''
             self.found = False
          
     def toString(self):
