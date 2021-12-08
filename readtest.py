@@ -45,6 +45,7 @@ class rbn(threading.Thread):
                 # print(node + 'connected!!!')
                 connected = True
 
+        alerted = False
         while True:
             try:
                 clxmsg = clxsock1.recv(2048).decode('latin-1')
@@ -55,7 +56,9 @@ class rbn(threading.Thread):
                         RBNPOINTER = (RBNPOINTER + 1) % SIZE 
                         RBNFIFO[RBNPOINTER] = spot
                         print(node + ': RBNFIFO[' + str(RBNPOINTER) + '] = ' + RBNFIFO[RBNPOINTER].toString())
-
+                        if (not alerted):
+                            print("RBN feed active")
+                            alerted = True
                         rbnspot = RBNFIFO[(RBNPOINTER + SIZE - LOOKBACK) % SIZE]
                         if (not rbnspot.empty):
                             foundvalid = False
@@ -68,7 +71,6 @@ class rbn(threading.Thread):
                                             foundvalid = foundvalid or FIFO[i].quality == 'V'
                                             if (not foundvalid and not foundqsy and not foundquestion):
                                                 print('Not found in curated cluster feed: ' + rbnspot.toString())
-
                     else:
                         if 'enter your call' in line.lower():
                             print(colored(line, 'yellow'))
@@ -101,6 +103,7 @@ class w9pa(threading.Thread):
                 # print(node + ' connected!!!')
                 connected = True
 
+        alerted = False
         while True:
             try:
                 clxmsg = clxsock2.recv(2048).decode('latin-1')
@@ -110,7 +113,10 @@ class w9pa(threading.Thread):
                         spot = Spot(line, node)
                         FIFOPOINTER = (FIFOPOINTER + 1) % SIZE 
                         FIFO[FIFOPOINTER] = spot
-                        print(node + ':    FIFO[' + str(FIFOPOINTER) + '] = ' + FIFO[FIFOPOINTER].toString())
+                        # print(node + ':    FIFO[' + str(FIFOPOINTER) + '] = ' + FIFO[FIFOPOINTER].toString())
+                        if (not alerted):
+                            print("W9PA feed active")
+                            alerted = True
                     else:
                         if 'enter your call:' in line.lower():
                             sendCmd(clxsock2, MYCALL)
