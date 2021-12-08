@@ -10,13 +10,25 @@ import telnetlib
  
 MYCALL = 'SM7IUN-7'
 SIZE = 2048
-LOOKBACK = 128
+LOOKBACK = 256
 POINTER = 0
 FIFO = []
- 
-def sendCmd(socket, txt):
-    txt = txt + '\n'
-    socket.send(txt.encode())     
+
+def contestband(freq):
+    if (freq >= 1800.0 and freq <= 2000.0):
+        return True
+    elif (freq >= 3500.0 and freq <= 3800.0):
+        return True
+    elif (freq >= 7000.0 and freq <= 7300.0):
+        return True
+    elif (freq >= 14000.0 and freq <= 14350.0):
+        return True
+    elif (freq >= 21000.0 and freq <= 21450.0):
+        return True
+    elif (freq >= 28000.0 and freq <= 29700.0):
+        return True
+    else:          
+        return False
 
 def wrap(number):
     return (number + SIZE) % SIZE
@@ -43,6 +55,8 @@ class w9pa(threading.Thread):
                 # print(line)
                 if line.upper().startswith('DX DE '):
                     spot = Spot(line, node)
+                    if spot.callsign == "WPM":
+                        print(line)
                     # print(node + ': ' + spot.toString())
                     FIFO[POINTER] = spot
                     # print(node + ': FIFO[' + str(POINTER) + '] = ' + FIFO[POINTER].toString())
@@ -50,9 +64,8 @@ class w9pa(threading.Thread):
                     if (not alerted):
                         print(node + " feed active")
                         alerted = True
-
                     qspot = FIFO[wrap(POINTER - LOOKBACK - 1)]
-                    if not qspot.empty and qspot.quality == '?':
+                    if not qspot.empty and qspot.quality == '?' and contestband(qspot.qrg):
                         # print('qspot = ' + qspot.toString())
                         found = False
                         # Loop from LOOKBACK back to most recent spot
@@ -64,9 +77,9 @@ class w9pa(threading.Thread):
                                 found = True
                                 break
                         if found:
-                            print(node + ' ? spot became valid after ' + str(deltatime) + 's ==> ' + qspot.toString())                            
+                            print('%s ? spot became valid after %4.1fs ==> %s' % (node, deltatime, qspot.toString()))
                         else:
-                            print(node + ' ? spot never became valid      ==> ' + qspot.toString())                            
+                            print('%s ? spot never became valid       ==> %s' % (node, qspot.toString())                            )
                             
             except Exception as e:
                 # print(node + ' thread exception')

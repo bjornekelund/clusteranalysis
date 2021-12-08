@@ -3,23 +3,7 @@ import re
 from datetime import datetime
  
 class Spot(): 
-     
-    def contestband(freq):
-        if (freq >= 1800.0 and freq <= 2000.0):
-            return True
-        elif (freq >= 3500.0 and freq <= 3800.0):
-            return True
-        elif (freq >= 7000.0 and freq <= 7300.0):
-            return True
-        elif (freq >= 14000.0 and freq <= 14350.0):
-            return True
-        elif (freq >= 21000.0 and freq <= 21450.0):
-            return True
-        elif (freq >= 28000.0 and freq <= 29700.0):
-            return True
-        else:          
-            return False
-            
+                 
     def __init__(self, line, node):
         self.empty = line == ''
         if (not self.empty):
@@ -62,9 +46,6 @@ class Spot():
                     self.quality = 'C'
             else:
                 self.quality = 'N'
-            # Do not bother about 60m and WARC bands due to low number of skimmers
-            # if not contestband(self.qrg):
-                # self.quality = 'N' 
                 
             self.timestamp = datetime.utcnow()
             self.origin = node
