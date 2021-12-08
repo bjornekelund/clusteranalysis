@@ -7,63 +7,20 @@ from spot import Spot
 import threading 
 import re
  
-MYCALL = 'SM7IUN-8'
-SIZE = 64
-FIFOPOINTER1 = 0
-FIFOPOINTER2 = 0
-FIFO1 = []
-FIFO2 = []
+MYCALL = 'SM7IUN-7'
+SIZE = 1024
+LOOKBACK = 5
+FIFOPOINTER = 0
+RBNPOINTER = 0
+FIFO = []
+RBNFIFO = []
 
-# Spot QUEUE[SIZE]
+clxsock1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+clxsock2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
  
 def sendCmd(socket, txt):
     txt = txt + '\n'
     socket.send(txt.encode())     
-    
-class w9pa(threading.Thread):
-    
-    def __init__(self):
-        threading.Thread.__init__(self)
-        
-    def run(self):
-        global FIFOPOINTER1, FIFO1, SIZE
-        clxsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        connected = False
-        host = 'dxc.w9pa.net'
-        port = 7373
-        node = 'W9PA'
-        server = (host, port)
-        while not connected:
-            print(colored(f'Connection to: {host} {port}', 'blue'))
-            try:
-                clxsock.connect(server)
-            except:
-                print('Impossibile to connect')
-                sleep(5)     
-            else:       
-                # print(node + ' connected!!!')
-                connected = True
-
-        while True:
-            try:
-                clxmsg = clxsock.recv(2048).decode('latin-1')
-                for line in clxmsg.splitlines():
-                    if line.upper().startswith('DX DE '):
-                        #SPOT
-                        spot = Spot(line, node)
-                        FIFOPOINTER1 = (FIFOPOINTER1 + 1 + SIZE) % SIZE 
-                        FIFO1[FIFOPOINTER1] = spot
-                        print(node + ': FIFO1[' + str(FIFOPOINTER1) + '] = ' + FIFO1[FIFOPOINTER1].toString())
-                    else:
-                        if 'enter your call:' in line.lower():
-                            sendCmd(clxsock, MYCALL)
-                            print(colored(line, 'yellow'))
-                            # sendCmd(clxsock, "set dx extension skimmerquality\n")                         
-            except KeyboardInterrupt:
-                sendCmd(clxsock, "BYE\n")
-                print('Disconnected')
-                clxsock.close()
-                exit()
     
 class rbn(threading.Thread):
 
@@ -71,8 +28,7 @@ class rbn(threading.Thread):
         threading.Thread.__init__(self)
         
     def run(self):
-        global FIFO2, FIFOPOINTER2, SIZE
-        clxsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        global RBNFIFO, RBNPOINTER, SIZE
         connected = False
         host = 'telnet.reversebeacon.net'
         node = 'RBN '
@@ -81,7 +37,7 @@ class rbn(threading.Thread):
         while not connected:
             print(colored(f'Connection to: {host} {port}', 'blue'))
             try:
-                clxsock.connect(server)
+                clxsock1.connect(server)
             except:
                 print('Impossibile to connect')
                 sleep(5)     
@@ -91,43 +47,98 @@ class rbn(threading.Thread):
 
         while True:
             try:
-                clxmsg = clxsock.recv(2048).decode('latin-1')
+                clxmsg = clxsock1.recv(2048).decode('latin-1')
                 for line in clxmsg.splitlines():
                     if line.upper().startswith('DX DE '):
                         spot = Spot(line, node)
                         # print(node + ': ' + spot.toString())
-                        FIFOPOINTER2 = (FIFOPOINTER2 + 1 + SIZE) % SIZE 
-                        FIFO2[FIFOPOINTER2] = spot
-                        print(node + ': FIFO2[' + str(FIFOPOINTER2) + '] = ' + FIFO2[FIFOPOINTER2].toString())
+                        RBNPOINTER = (RBNPOINTER + 1) % SIZE 
+                        RBNFIFO[RBNPOINTER] = spot
+                        print(node + ': RBNFIFO[' + str(RBNPOINTER) + '] = ' + RBNFIFO[RBNPOINTER].toString())
+
+                        rbnspot = RBNFIFO[(RBNPOINTER + SIZE - LOOKBACK) % SIZE]
+                        if (not rbnspot.empty):
+                            foundvalid = False
+                            foundquestion = False
+                            for i in range(SIZE):
+                                if (not FIFO[i].empty):
+                                    if (rbnspot.callsign == FIFO[i].callsign):
+                                        if (rbnspot.qrg - FIFO[i].qrg < 0.2):
+                                            foundquestion = foundquestion or FIFO[i].quality == '?'
+                                            foundvalid = foundvalid or FIFO[i].quality == 'V'
+                                            if (not foundvalid and not foundqsy and not foundquestion):
+                                                print('Not found in curated cluster feed: ' + rbnspot.toString())
 
                     else:
                         if 'enter your call' in line.lower():
                             print(colored(line, 'yellow'))
                             # print('Sending call')
-                            sendCmd(clxsock, MYCALL + '\n')
-            except KeyboardInterrupt:
-                sendCmd(clxsock, "BYE\n")
-                print('Disconnected')
-                clxsock.close()
+                            sendCmd(clxsock1, MYCALL + '\n')
+            except:
+                print('RBN thread exception')
+                exit()
+
+class w9pa(threading.Thread):
+    
+    def __init__(self):
+        threading.Thread.__init__(self)
+        
+    def run(self):
+        global FIFOPOINTER, FIFO, SIZE
+        connected = False
+        host = 'dxc.w9pa.net'
+        port = 7373
+        node = 'W9PA'
+        server = (host, port)
+        while not connected:
+            print(colored(f'Connection to: {host} {port}', 'blue'))
+            try:
+                clxsock2.connect(server)
+            except:
+                print('Impossibile to connect')
+                sleep(5)     
+            else:       
+                # print(node + ' connected!!!')
+                connected = True
+
+        while True:
+            try:
+                clxmsg = clxsock2.recv(2048).decode('latin-1')
+                for line in clxmsg.splitlines():
+                    if line.upper().startswith('DX DE '):
+                        #SPOT
+                        spot = Spot(line, node)
+                        FIFOPOINTER = (FIFOPOINTER + 1) % SIZE 
+                        FIFO[FIFOPOINTER] = spot
+                        print(node + ':    FIFO[' + str(FIFOPOINTER) + '] = ' + FIFO[FIFOPOINTER].toString())
+                    else:
+                        if 'enter your call:' in line.lower():
+                            sendCmd(clxsock2, MYCALL)
+                            print(colored(line, 'yellow'))
+                            # sendCmd(clxsock, "set dx extension skimmerquality\n")                         
+            except:
+                print('W9PA thread exception')
                 exit()
     
 if __name__ == '__main__':
     for i in range(SIZE):
-        FIFO1.append(Spot('', ''))
-        FIFO2.append(Spot('', ''))
-        
+        FIFO.append(Spot('', ''))
+        RBNFIFO.append(Spot('', ''))
 
     thread1 = w9pa()
     thread1.start()
-#    thread1.join()
 
     thread2 = rbn()
     thread2.start()
-#    thread2.join()
 
-    # print('Done!')
-    # clxsock1.close()
-    # clxsock2.close()
-    # while True:
-        # command = input('>')
-        # sendCmd(command)
+while True:
+    try:
+        sleep(1)
+    except KeyboardInterrupt:
+        sendCmd(clxsock1, "BYE\n")
+        clxsock1.close()
+        sendCmd(clxsock2, "BYE\n")
+        clxsock2.close()
+        print('\nDisconnected')
+        exit()  
+

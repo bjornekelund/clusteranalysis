@@ -11,7 +11,7 @@ class Spot():
             colon, period = line.find(":"), line.find(".")
             self.spotter = line[6 : colon]
             # self.qrg = line[colon + 1 : period + 2].strip()
-            self.qrg = re.findall("\d+\.\d+", line.partition(":")[2])[0]
+            self.qrg = float(re.findall("\d+\.\d+", line.partition(":")[2])[0])
             # print(node + ':' + 'Line=" + line)
             # print(node + ': part=' + line.partition(":")[2])
             
@@ -46,6 +46,7 @@ class Spot():
                 self.quality = 'N'
             self.time = datetime.utcnow()
             self.origin = node
+            self.found = False
          
     def toString(self):
         return f'{self.time} {self.qrg} {self.corrected} de {self.spotter} Q={self.quality}'
