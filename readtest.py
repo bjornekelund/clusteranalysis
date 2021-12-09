@@ -119,7 +119,7 @@ class ve7cc(threading.Thread):
             try:
                 line = tve7cc.read_until(b'\n').decode('latin-1')
                 # print(line)
-                if line.upper().startswith('DX DE ') and modeisCW(line):
+                if line.upper().startswith('DX DE ') and modeisCW(line) and isskimmer(line):
                     spot = Spot(line, node)
                     # print(node + ': ' + spot.toString())
                     FIFO2[POINTER2] = spot
@@ -133,7 +133,7 @@ class ve7cc(threading.Thread):
                     chkindex = wrap(POINTER2 - CHECKBACK - 1)
                     chkspot = FIFO2[chkindex]
                     rbnpoint = POINTER1 # Thread risk mitigation
-                    if (not chkspot.empty) and modeisCW(chkspot.txt) and modeisCW(chkspot.txt) and contestband(chkspot.qrg):
+                    if (not chkspot.empty) and contestband(chkspot.qrg):
                         # print(node + ': chkspot = ' + chkspot.toString())
                         found = False
                         # Loop through all previos, available RBN spots
