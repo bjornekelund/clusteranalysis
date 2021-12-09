@@ -19,7 +19,7 @@ class Spot():
             self.callsign = re.findall("[A-Z0-9\/]+[A-Z][A-Z0-9\/]+", line.partition(":")[2])[0]
             # print(node + ': call=' + self.callsign)
             # for mat in re.finditer(" [A-Z0-9\/]+ ", line.partition(":")[2]):
-                # if (mat <> None) 
+                # if (mat <> None)
                     # print("2nd half =" + line.partition(":")[2])
                     # s = mat.start()
                     # e = mat.end()
@@ -63,5 +63,6 @@ class Spot():
             self.found = False
          
     def toString(self):
-        return f'{self.time} {self.qrg} {self.corrected} de {self.spotter} Q={self.quality}'
+        # return f'{self.timestamp.strftime("%H:%M:%S")}: {self.time} {self.qrg:7.1f} {self.corrected:<10} de {self.spotter:<10} Q={self.quality}'
+        return f'{self.time} {self.qrg:7.1f} {self.corrected:<10} de {self.spotter:<10} Q={self.quality}'
 
