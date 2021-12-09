@@ -9,8 +9,8 @@ import telnetlib
 from datetime import datetime
  
 MYCALL = 'SM7IUN-7'
-SIZE1 = 512 # RBN buffer size
-SIZE2 = 256 # VE7CC buffer size
+SIZE1 = 256 # RBN buffer size
+SIZE2 = 1024 # VE7CC buffer size
 POINTER1 = 0 # RBN buffer pointer
 POINTER2 = 0 # VE7CC buffer pointer
 FIFO1 = [] # RBN buffer
@@ -74,19 +74,23 @@ class w9pa(threading.Thread):
                     oldspot = FIFO1[POINTER1]
                     if not oldspot.empty:
                         found = False
+                        delay = 999
                         for i in range(0, SIZE2):
                             if oldspot.callsign == FIFO2[i].callsign and abs(oldspot.qrg - FIFO2[i].qrg) <= 0.5:
-                                found = True;
-                                break;
+                                dc = -round((FIFO2[i].timestamp - oldspot.timestamp).total_seconds(), 1)
+                                if dc > 0 and dc < delay:
+                                    delay = dc
+                                    found = True;
+                                    break;
                         if not found:
                             oldage = round((datetime.utcnow() - oldspot.timestamp).total_seconds(), 1)
-                            print(f'RBN spot with age %4.1fs NOT FOUND in VE7CC feed ==> %s' % (oldage, oldspot.toString()))
+                            print(f'RBN spot NOT FOUND in VE7CC feed after %4.1fs    ==> %s' % (oldage, oldspot.toString()))
                             #for i in range(0, SIZE2):
                             #    if not FIFO2[i].empty:
                             #        print(f'{FIFO2[i].timestamp.strftime("%H:%M:%S")} - {FIFO2[i].callsign} @ {FIFO2[i].qrg}')
                             #print()
                         else:
-                            print(f'RBN spot found in VE7CC feed                     ==> {oldspot.toString()}') 
+                            print(f'RBN spot found in VE7CC feed after %4.1fs        ==> %s' % (delay, oldspot.toString())) 
                     else:
                         if (SIZE1 - POINTER1) % 32 == 0:
                             print(f'Filling pipeline, {SIZE1 - POINTER1} {node}spots left before operational')
@@ -98,10 +102,10 @@ class w9pa(threading.Thread):
                     if not alerted:
                         print(node + " feed active")
                         alerted = True
-            except Exception as e:
-            #except:
-                print(node + ' thread exception')
-                print(e)
+            # except Exception as e:
+            except:
+                # print(node + ' thread exception')
+                # print(e)
                 exit(0)
     
 class ve7cc(threading.Thread):
@@ -148,6 +152,7 @@ class ve7cc(threading.Thread):
             #except Exception as e:
                 #print(node + ' thread exception')
                 #print(e)
+                thread1.stop()
                 exit(0)
 
 if __name__ == '__main__':
