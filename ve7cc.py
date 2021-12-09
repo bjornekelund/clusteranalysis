@@ -6,11 +6,11 @@ from spot import Spot
 import threading 
 import re
 import telnetlib
+from datetime import datetime
  
 MYCALL = 'SM7IUN-7'
-SIZE1 = 128 # RBN buffer size
-SIZE2 = 128 # VE7CC buffer size
-# CHECKBACK = 128 # Number of VE spots back to look for ?/V transitions and VE7CC feed presence
+SIZE1 = 512 # RBN buffer size
+SIZE2 = 256 # VE7CC buffer size
 POINTER1 = 0 # RBN buffer pointer
 POINTER2 = 0 # VE7CC buffer pointer
 FIFO1 = [] # RBN buffer
@@ -68,30 +68,41 @@ class w9pa(threading.Thread):
             try:
                 line = tw9pa.read_until(b'\n').decode('latin-1')
                 # print(line)
-                if line.upper().startswith('DX DE ') and modeisCW(line) and isskimmer(line):
-                    # FIFO1[POINTER1] is the oldest spot
-                    if not FIFO1[POINTER1].empty:
-                        if not FIFO1[POINTER1].found:
-                            print(f'RBN spot NOT FOUND in VE7CC feed ==> {FIFO1[POINTER1].toString()}') 
+                if line.upper().startswith('DX DE ') and modeisCW(line) and isskimmer(line) and contestband(Spot(line, node).qrg):
+                    spot = Spot(line, node)
+                    # FIFO1[POINTER1] is the oldest spot, which will be overwritten
+                    oldspot = FIFO1[POINTER1]
+                    if not oldspot.empty:
+                        found = False
+                        for i in range(0, SIZE2):
+                            if oldspot.callsign == FIFO2[i].callsign and abs(oldspot.qrg - FIFO2[i].qrg) <= 0.5:
+                                found = True;
+                                break;
+                        if not found:
+                            oldage = round((datetime.utcnow() - oldspot.timestamp).total_seconds(), 1)
+                            print(f'RBN spot with age %4.1fs NOT FOUND in VE7CC feed ==> %s' % (oldage, oldspot.toString()))
+                            #for i in range(0, SIZE2):
+                            #    if not FIFO2[i].empty:
+                            #        print(f'{FIFO2[i].timestamp.strftime("%H:%M:%S")} - {FIFO2[i].callsign} @ {FIFO2[i].qrg}')
+                            #print()
                         else:
-                            print(f'RBN spot found in VE7CC feed     ==> {FIFO1[POINTER1].toString()}') 
+                            print(f'RBN spot found in VE7CC feed                     ==> {oldspot.toString()}') 
                     else:
-                        print(f'{SIZE1 - POINTER1} spots left before operational')
-                        for i in range(0, SIZE1): # Reset everything until we are "live"
-                            FIFO1[i].found = True
+                        if (SIZE1 - POINTER1) % 32 == 0:
+                            print(f'Filling pipeline, {SIZE1 - POINTER1} {node}spots left before operational')
                             
                     # Add spot to pipeline
-                    spot = Spot(line, node)
                     # print(f'{node}: {spot.toString()}')
                     FIFO1[POINTER1] = spot
                     POINTER1 = wrap1(POINTER1 + 1)
-                    if (not alerted):
+                    if not alerted:
                         print(node + " feed active")
                         alerted = True
             except Exception as e:
-                # print(node + ' thread exception')
-                # print(e)
-                exit()
+            #except:
+                print(node + ' thread exception')
+                print(e)
+                exit(0)
     
 class ve7cc(threading.Thread):
 
@@ -116,32 +127,35 @@ class ve7cc(threading.Thread):
                     spot = Spot(line, node)
                     # print(f'{node}: {spot.toString()}')
 
-                    # FIFO2[POINTER2] = spot
-                    # POINTER2 =  wrap2(POINTER2 + 1)
+                    FIFO2[POINTER2] = spot
+                    POINTER2 = wrap2(POINTER2 + 1)
 
                     if (not alerted):
                         print(node + " feed active")
                         alerted = True        
                     
-                    # Mark all similar spots in RBN feed as found 
-                    for i in range(0, SIZE1):
-                        if not FIFO1[i].empty:
-                            # print(f'Checking {FIFO1[i].toString()}')
-                            if spot.callsign == FIFO1[i].callsign and abs(spot.qrg - FIFO1[i].qrg) <= 0.5:
-                                # print(f'Hit {spot.toString()} = {FIFO1[i].toString()}')
-                                FIFO1[i].found = True
+                    ## Mark all similar spots in RBN feed as found 
+                    ## Delay the spot 12 spots to guarantee it has been included in RBN feed
+                    #chkspot = FIFO2[wrap2(POINTER2 - 12 - 1)]
+                    #if not chkspot.empty:
+                    #    for i in range(0, SIZE1):
+                    #        # print(f'Checking {FIFO1[i].toString()}')
+                    #        if chkspot.callsign == FIFO1[i].callsign and abs(chkspot.qrg - FIFO1[i].qrg) <= 0.5:
+                    #            # print(f'Hit {spot.toString()} = {FIFO1[i].toString()}')
+                    #            FIFO1[i].found = True
 
-            except Exception as e:
-                # print(node + ' thread exception')
-                # print(e)
-                exit()
+            except:
+            #except Exception as e:
+                #print(node + ' thread exception')
+                #print(e)
+                exit(0)
 
 if __name__ == '__main__':
     for i in range(SIZE1):
         FIFO1.append(Spot('', ''))
 
-    # for i in range(SIZE2):
-        # FIFO2.append(Spot('', ''))
+    for i in range(SIZE2):
+         FIFO2.append(Spot('', ''))
         
     print('Created array, opening telnet')
 
@@ -165,5 +179,5 @@ while True:
         tw9pa.close()
         tve7cc.close()
         print('\nDisconnected')
-        exit()
+        exit(0)
 

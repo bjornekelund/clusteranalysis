@@ -16,8 +16,9 @@ class Spot():
             # print(node + ':' + 'Line=" + line)
             # print(node + ': part=' + line.partition(":")[2])
             
-            self.callsign = re.findall("[A-Z0-9\/]+[A-Z][A-Z0-9\/]+", line.partition(":")[2])[0]
-            # print(node + ': call=' + self.callsign)
+            self.callsign = re.findall("[A-Z\d\/]+[A-Z]+|[A-Z\d\/]+\/[A-Z\d\/]+", line.partition(":")[2])[0]
+            if self.callsign == "WPM":
+                print(node + ': call=' + self.callsign)
             # for mat in re.finditer(" [A-Z0-9\/]+ ", line.partition(":")[2]):
                 # if (mat <> None)
                     # print("2nd half =" + line.partition(":")[2])
@@ -60,9 +61,9 @@ class Spot():
             self.qrg = 0
             self.timestamp = datetime.utcnow()
             self.origin = ''
-            self.found = False
+            self.found = True
          
     def toString(self):
-        # return f'{self.timestamp.strftime("%H:%M:%S")}: {self.time} {self.qrg:7.1f} {self.corrected:<10} de {self.spotter:<10} Q={self.quality}'
-        return f'{self.time} {self.qrg:7.1f} {self.corrected:<10} de {self.spotter:<10} Q={self.quality}'
+        return f'{self.timestamp.strftime("%H:%M:%S")}: {self.time} {self.qrg:7.1f} {self.corrected:<10} de {self.spotter:<10} Q={self.quality}'
+        #return f'{self.time} {self.qrg:7.1f} {self.corrected:<10} de {self.spotter:<10} Q={self.quality}'
 
