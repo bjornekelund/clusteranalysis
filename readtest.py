@@ -9,8 +9,9 @@ import re
 import telnetlib
  
 MYCALL = 'SM7IUN-7'
-SIZE = 2048
-LOOKBACK = 256
+SIZE = 512
+LOOKBACK = 128 # Number of spots back to look for ?/V transitions
+CHECKBACK = 8 # Number of VE7CC spots back to check if RBN spot is missed
 POINTER1 = 0
 POINTER2 = 0
 FIFO1 = []
@@ -82,10 +83,10 @@ class w9pa(threading.Thread):
                                     deltatime = round((FIFO1[iw].timestamp - qspot.timestamp).total_seconds(), 1)
                                     found = True
                                     break
-                            if not found:
-                                print('%s: ? spot did not turn V       ==> %s' % (node, qspot.toString()))
-                            else:
-                                print('%s: ? spot turned V after %4.1fs ==> %s' % (node, deltatime, qspot.toString()))
+                            # if not found:
+                                # print('%s: ? spot did not turn V       ==> %s' % (node, qspot.toString()))
+                            # else:
+                                # print('%s: ? spot turned V after %4.1fs ==> %s' % (node, deltatime, qspot.toString()))
                             
             except Exception as e:
                 # print(node + ' thread exception')
@@ -122,31 +123,35 @@ class ve7cc(threading.Thread):
                         print(node + " feed active")
                         alerted = True                            
 
-                    index = wrap(POINTER2 - LOOKBACK - 1)
-                    qspot = FIFO2[index]
-                    if (not qspot.empty):
-                        # print('FIFO2[%d].txt = %s' % (index, qspot.txt))
-                        # print('FIFO2[%d].callsign = %s' % (index, qspot.callsign))
-                        # print('FIFO2[%d].qrg = %.1f' % (index, qspot.qrg))
-                        # print(f'FIFO2[{index}].contestband = {contestband(qspot.qrg)}')
-                        # print(f'FIFO2[{index}].cw = {CW(qspot.txt)}')
+                    # Read pointers once to avoid threading issues
+                    chkindex = wrap(POINTER2 - CHECKBACK - 1)
+                    chkspot = FIFO2[chkindex]
+                    rbnpoint = POINTER1
+                    if (not chkspot.empty):
+                        # print('FIFO2[%d].txt = %s' % (chkindex, chkspot.txt))
+                        # print('FIFO2[%d].callsign = %s' % (chkindex, chkspot.callsign))
+                        # print('FIFO2[%d].qrg = %.1f' % (chkindex, chkspot.qrg))
+                        # print(f'FIFO2[{chkindex}].contestband = {contestband(chkspot.qrg)}')
+                        # print(f'FIFO2[{chkindex}].cw = {CW(chkspot.txt)}')
                         # # print(f'lastcall={lastcall}')
-                        # print('zz')
-                        if (not lastcall == qspot.callsign) and contestband(qspot.qrg) and CW(qspot.txt):
-                            # print(node + ': qspot = ' + qspot.toString())
+                        print('zz')
+                        # if (not lastcall == chkspot.callsign) and contestband(chkspot.qrg) and CW(chkspot.txt):
+                        if contestband(chkspot.qrg) and CW(chkspot.txt):
+                            print(node + ': chkspot = ' + chkspot.toString())
                             found = False
-                            # Loop from LOOKBACK back to most recent spot in FIFO1
-                            for i in range(POINTER1 - LOOKBACK - 2, POINTER1 - 1, 1):
-                                iw = wrap(i)
-                                notempty = FIFO2[iw].empty 
-                                samecall = qspot.callsign == FIFO1[iw].callsign
-                                samefreq = abs(qspot.qrg - FIFO1[iw].qrg) <= 0.2
-                                if notempty and samecall and samefreq:
+                            # Loop through all previos, available RBN spots
+                            for i in range(rbnpoint, rbnpoint - 1 + SIZE, 1):
+                                if not FIFO1[iw].empty and chkspot.callsign == FIFO1[iw].callsign and abs(chkspot.qrg - FIFO1[iw].qrg) <= 0.2:
                                     found = True
                                     break
                             if not found:
-                                print('%s: RBN spot not found in feed  ==> %s' % (node, qspot.toString()))
-                                lastcall = qspot.callsign
+                                print('-----------------------------------------')
+                                print(f'%s: RBN spot not found in feed  ==> %s' % (node, chkspot.toString()))
+                                print(f'FIFO2[{chkindex}] = {chkspot.toString()}')
+                                for i in range(rbnpoint - CHECKBACK - 2, rbnpoint - 1, 1):
+                                    print(f'FIFO1[{i}] = {FIFO1[i].toString()}')
+                                print
+                                lastcall = chkspot.callsign
 
             except Exception as e:
                 # print(node + ' thread exception')
