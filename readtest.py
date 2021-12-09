@@ -9,9 +9,9 @@ import re
 import telnetlib
  
 MYCALL = 'SM7IUN-7'
-SIZE = 1024
+SIZE = 2048
 LOOKBACK = 256 # Number of spots back to look for ?/V transitions
-CHECKBACK = 16 # Number of VE7CC spots back to check if RBN spot is missed
+CHECKBACK = 128 # Number of VE7CC spots back to check if RBN spot is missed
 POINTER1 = 0
 POINTER2 = 0
 FIFO1 = []
@@ -132,39 +132,29 @@ class ve7cc(threading.Thread):
                     # Read pointers once to avoid threading issues
                     chkindex = wrap(POINTER2 - CHECKBACK - 1)
                     chkspot = FIFO2[chkindex]
-                    rbnpoint = POINTER1
-                    if (not chkspot.empty):
-                        # print('FIFO2[%d].txt = %s' % (chkindex, chkspot.txt))
-                        # print('FIFO2[%d].callsign = %s' % (chkindex, chkspot.callsign))
-                        # print('FIFO2[%d].qrg = %.1f' % (chkindex, chkspot.qrg))
-                        # print(f'FIFO2[{chkindex}].contestband = {contestband(chkspot.qrg)}')
-                        # print(f'FIFO2[{chkindex}].cw = {modeisCW(chkspot.txt)}')
-                        # # print(f'lastcall={lastcall}')
-                        # print('zz')
-                        # if (not lastcall == chkspot.callsign) and contestband(chkspot.qrg) and modeisCW(chkspot.txt):
-                        if contestband(chkspot.qrg) and modeisCW(chkspot.txt) and isskimmer(chkspot.txt):
-                            # print(node + ': chkspot = ' + chkspot.toString())
-                            found = False
-                            # Loop through all previos, available RBN spots
-                            # Start with the oldest
-                            for i in range(rbnpoint, rbnpoint - 1 + SIZE):
-                                iw = wrap(i)
-                                if (not FIFO1[iw].empty) and chkspot.callsign == FIFO1[iw].callsign and abs(chkspot.qrg - FIFO1[iw].qrg) <= 0.2:
-                                    seconds = round((FIFO1[iw].timestamp - chkspot.timestamp).total_seconds(), 1)
-                                    if (seconds > 0): # Ignore spots more recent than checked spot
-                                        found = True
-                                        break
+                    rbnpoint = POINTER1 # Thread risk mitigation
+                    if (not chkspot.empty) and modeisCW(chkspot.txt) and modeisCW(chkspot.txt) and contestband(chkspot.qrg):
+                        # print(node + ': chkspot = ' + chkspot.toString())
+                        found = False
+                        # Loop through all previos, available RBN spots
+                        # Start with the oldest
+                        for i in range(rbnpoint, rbnpoint - 1 + SIZE):
+                            iw = wrap(i)
+                            if (not FIFO1[iw].empty) and chkspot.callsign == FIFO1[iw].callsign and abs(chkspot.qrg - FIFO1[iw].qrg) <= 0.2:
+                                seconds = round((FIFO1[iw].timestamp - chkspot.timestamp).total_seconds(), 1)
+                                if (seconds > 0): # Ignore spots more recent than checked spot
+                                    found = True
+                                    break
 
-                            if not found:
-                                print(f'%s: RBN spot NOT found in feed          ==> %s' % (node, chkspot.toString()))
-                            else:
-                                print(f'%s: RBN spot found in feed after %4.1fs  ==> %s' % (node, seconds, chkspot.toString()))
-                                # print(f'FIFO2[{chkindex}] = {chkspot.toString()}')
-                                # for i in range(rbnpoint, rbnpoint - 1 + SIZE, 1):
-                                    # print(f'FIFO1[{wrap(i)}] = {FIFO1[wrap(i)].toString()}')
-                                # print
-                                # lastcall = chkspot.callsign
-
+                        if not found:
+                            print(f'%s: RBN spot NOT found in feed          ==> %s' % (node, chkspot.toString()))
+                        else:
+                            print(f'%s: RBN spot found in feed after %4.1fs  ==> %s' % (node, seconds, chkspot.toString()))
+                            # print(f'FIFO2[{chkindex}] = {chkspot.toString()}')
+                            # for i in range(rbnpoint, rbnpoint - 1 + SIZE, 1):
+                                # print(f'FIFO1[{wrap(i)}] = {FIFO1[wrap(i)].toString()}')
+                            # print
+                            # lastcall = chkspot.callsign
             except Exception as e:
                 # print(node + ' thread exception')
                 # print(e)
@@ -187,6 +177,8 @@ if __name__ == '__main__':
     thread2 = ve7cc()
     thread2.start()
     print('Started VE7CC thread')
+
+    print('Wait for pipeline to fill up...')
 
 while True:
     try:
