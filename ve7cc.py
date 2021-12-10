@@ -9,7 +9,7 @@ import telnetlib
 from datetime import datetime
  
 MYCALL = 'SM7IUN-7'
-SIZE1 = 200 # "RBN" buffer size
+SIZE1 = 256 # "RBN" buffer size
 SIZE2 = 1000 # VE7CC buffer size
 FIFO1 = [] # "RBN" buffer
 FIFO2 = [] # VE7CC buffer
@@ -54,7 +54,7 @@ class w9pa(threading.Thread):
         threading.Thread.__init__(self)
         
     def run(self):
-        global FIFO1, FIFO2, SIZE1, SIZE2, tw9pa
+        global tw9pa
         node = 'W9PA-4'
 
         alerted = False
@@ -78,12 +78,12 @@ class w9pa(threading.Thread):
                                 if oldspot.callsign == si2.callsign and abs(oldspot.qrg - si2.qrg) <= 0.5:
                                     dc = round((si2.timestamp - oldspot.timestamp).total_seconds(), 1)
                                     found = True;
-                                    if abs(dc) < delay:
+                                    if dc > 0 and dc < delay:
                                         delay = dc
                             if not found:
                                 print(f'RBN spot NOT FOUND in VE7CC feed after %5.1fs    ==> %s' % (fifo1duration, oldspot.toString()))
                             else:
-                                if delay < 0:
+                                if delay == 9999:
                                     print(f'RBN spot found in VE7CC feed (duplicate)         ==> %s' % oldspot.toString()) 
                                 else:
                                     print(f'RBN spot found in VE7CC feed after %4.1fs         ==> %s' % (delay, oldspot.toString())) 
@@ -92,7 +92,6 @@ class w9pa(threading.Thread):
                                 print(f'Filling pipeline, need {SIZE1 - len(FIFO1)} more spots from {node} before analysis can start...')
                             
                         # Add spot to pipeline
-                        #print(f'{node}: {spot.toString()}')
                         FIFO1.append(spot)
                         if len(FIFO1) > SIZE1: # Cap list at SIZE1
                             FIFO1.pop(0)
@@ -112,7 +111,7 @@ class ve7cc(threading.Thread):
         threading.Thread.__init__(self)
         
     def run(self):
-        global FIFO1, FIFO2, tve7cc
+        global tve7cc
         node = 'VE7CC'
 
         alerted = False
@@ -121,8 +120,7 @@ class ve7cc(threading.Thread):
         tve7cc.write(MYCALL.encode('ascii') + b'\n')
         while True:
             try:
-                if tve7cc != None:
-                    line = tve7cc.read_until(b'\n').decode('latin-1')
+                line = tve7cc.read_until(b'\n').decode('latin-1')
                 if line.upper().startswith('DX DE ') and modeisCW(line) and isskimmer(line) and contestband(Spot(line, node).qrg):
                     spot = Spot(line, node)
 
