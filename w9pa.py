@@ -9,11 +9,11 @@ import telnetlib
 from datetime import datetime
  
 MYCALL = 'SM7IUN-7'
-SIZE1 = 1024 # "RBN" buffer size
-SIZE2 = 128 # VE7CC buffer size
-POINTER1 = 0 # "RBN" buffer pointer
+SIZE1 = 256 # RBN buffer size
+SIZE2 = 256 # VE7CC buffer size
+POINTER1 = 0 # RBN buffer pointer
 POINTER2 = 0 # VE7CC buffer pointer
-FIFO1 = [] # "RBN" buffer
+FIFO1 = [] # RBN buffer
 FIFO2 = [] # VE7CC buffer
 
 def contestband(freq):
@@ -57,7 +57,7 @@ class w9pa(threading.Thread):
         
     def run(self):
         global FIFO1, FIFO2, POINTER1, POINTER2, SIZE1, SIZE2, tw9pa
-        node = 'W9PA-4'
+        node = 'W9PA '
 
         alerted = False
         clxmsg = tw9pa.read_until(b'your call:').decode('latin-1')
@@ -69,34 +69,9 @@ class w9pa(threading.Thread):
                 line = tw9pa.read_until(b'\n').decode('latin-1')
                 #print(line)
                 if line.upper().startswith('DX DE ') and modeisCW(line) and isskimmer(line) and contestband(Spot(line, node).qrg):
-                    spot = Spot(line, node)
-                    # FIFO1[POINTER1] is the oldest spot, which will be overwritten
-                    oldspot = FIFO1[POINTER1]
-                    if not oldspot.empty:
-                        found = False
-                        delay = 999
-                        for i in range(0, SIZE2):
-                            if oldspot.callsign == FIFO2[i].callsign and abs(oldspot.qrg - FIFO2[i].qrg) <= 0.5:
-                                dc = round((FIFO2[i].timestamp - oldspot.timestamp).total_seconds(), 1) + 0.1
-                                if dc > 0 and dc < delay:
-                                    delay = dc
-                                    found = True;
-                                    #break;
-                        if not found:
-                            oldage = round((datetime.utcnow() - oldspot.timestamp).total_seconds(), 1)
-                            print(f'RBN spot NOT FOUND in VE7CC feed after %5.1fs   ==> %s' % (oldage, oldspot.toString()))
-                            #for i in range(0, SIZE2):
-                            #    if not FIFO2[i].empty:
-                            #        print(f'{FIFO2[i].timestamp.strftime("%H:%M:%S")} - {FIFO2[i].callsign} @ {FIFO2[i].qrg}')
-                            #print()
-                        else:
-                            print(f'RBN spot found in VE7CC feed after %4.1fs        ==> %s' % (delay, oldspot.toString())) 
-                    else:
-                        if (SIZE1 - POINTER1) % 32 == 0:
-                            print(f'Filling pipeline, need {SIZE1 - POINTER1} more spots from {node} before analysis can start...')
-                            
+                    spot = Spot(line, node)                          
                     # Add spot to pipeline
-                    #print(f'{node}: {spot.toString()}')
+                    print(f'{node}: {spot.toString()}')
                     FIFO1[POINTER1] = spot
                     POINTER1 = wrap1(POINTER1 + 1)
                     if not alerted:
@@ -104,33 +79,31 @@ class w9pa(threading.Thread):
                         alerted = True
             # except Exception as e:
             except:
-                # print(node + ' thread exception')
-                # print(e)
                 exit(0)
     
-class ve7cc(threading.Thread):
+class rbn(threading.Thread):
 
     def __init__(self):
         threading.Thread.__init__(self)
         
     def run(self):
-        global FIFO1, FIFO2, POINTER1, POINTER2, tve7cc
-        node = 'VE7CC'
+        global FIFO1, FIFO2, POINTER1, POINTER2, trbn
+        node = 'RBN  '
 
         alerted = False
-        clxmsg = tve7cc.read_until(b'your call:').decode('latin-1')
+        clxmsg = trbn.read_until(b'your call:').decode('latin-1')
         sleep(1)
         #print(colored(clxmsg, 'yellow'))
-        tve7cc.write(MYCALL.encode('ascii') + b'\n')
+        trbn.write(MYCALL.encode('ascii') + b'\n')
         while True:
             try:
-                if tve7cc != None:
-                    line = tve7cc.read_until(b'\n').decode('latin-1')
+                if trbn != None:
+                    line = trbn.read_until(b'\n').decode('latin-1')
                 # print(line)
                 # print(f'CW={modeisCW(line)} skim={isskimmer(line)}')
                 if line.upper().startswith('DX DE ') and modeisCW(line) and isskimmer(line):
                     spot = Spot(line, node)
-                    #print(f'{node}: {spot.toString()}')
+                    print(f'{node}: {spot.toString()}')
 
                     FIFO2[POINTER2] = spot
                     POINTER2 = wrap2(POINTER2 + 1)
@@ -138,21 +111,7 @@ class ve7cc(threading.Thread):
                     if (not alerted):
                         print(node + " feed active")
                         alerted = True        
-                    
-                    ## Mark all similar spots in RBN feed as found 
-                    ## Delay the spot 12 spots to guarantee it has been included in RBN feed
-                    #chkspot = FIFO2[wrap2(POINTER2 - 12 - 1)]
-                    #if not chkspot.empty:
-                    #    for i in range(0, SIZE1):
-                    #        # print(f'Checking {FIFO1[i].toString()}')
-                    #        if chkspot.callsign == FIFO1[i].callsign and abs(chkspot.qrg - FIFO1[i].qrg) <= 0.5:
-                    #            # print(f'Hit {spot.toString()} = {FIFO1[i].toString()}')
-                    #            FIFO1[i].found = True
-
             except:
-            #except Exception as e:
-                #print(node + ' thread exception')
-                #print(e)
                 exit(0)
 
 if __name__ == '__main__':
@@ -165,14 +124,14 @@ if __name__ == '__main__':
     print('Created array, opening telnet')
 
     tw9pa = telnetlib.Telnet('dxc.w9pa.net', 7373, 5)
-    #tw9pa = telnetlib.Telnet('telnet.reversebeacon.net', 7000, 5)
-    tve7cc = telnetlib.Telnet('ve7cc.net')
+    trbn = telnetlib.Telnet('telnet.reversebeacon.net', 7000, 5)
+    #trbn = telnetlib.Telnet('ve7cc.net')
 
     thread1 = w9pa()
     thread1.start()
     print('Started W9PA thread')  
     
-    thread2 = ve7cc()
+    thread2 = rbn()
     thread2.start()
     print('Started VE7CC thread')
 
@@ -183,7 +142,7 @@ while True:
         sleep(1)
     except KeyboardInterrupt:
         tw9pa.close()
-        tve7cc.close()
+        trbn.close()
         print('\nDisconnected')
         exit(0)
 
