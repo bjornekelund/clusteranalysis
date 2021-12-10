@@ -3,11 +3,11 @@
 import socket
 from time import sleep
 from spot import Spot
-import threading 
+import threading
 import re
 import telnetlib
 from datetime import datetime
- 
+
 MYCALL = 'SM7IUN-7'
 SIZE1 = 256 # "RBN" buffer size
 SIZE2 = 1000 # VE7CC buffer size
