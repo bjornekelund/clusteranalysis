@@ -32,6 +32,9 @@ def isskimmer(line):
     else:
         return False
 
+def since(time):
+    return round((datetime.utcnow() - time).total_seconds(), 0) 
+
 class w9pa(threading.Thread):
 
     def __init__(self):
@@ -55,31 +58,33 @@ class w9pa(threading.Thread):
                     # Add incoming spot to end of queue
                     FIFO1.append(Spot(line, node))
                     # While oldest spot is older than SIZE1, process it
-                    while (datetime.utcnow() - FIFO1[0].timestamp).total_seconds() >= SIZE1:
+                    while since(FIFO1[0].timestamp) >= SIZE1:
                         fifo1filled = True
-                        oldspot = FIFO1[0] # FIFO1[0] is the oldest spot, FIFO1[-1] the most recent
-                        FIFO1.pop(0) # Remove oldest spot from queue
+                        oldspot = FIFO1.pop(0) # FIFO1[0] is the oldest spot, FIFO1[-1] the most recent
                         # Only process spots that are on contest bands and not tagged B or C
                         if contestband(oldspot.qrg) and oldspot.quality != 'C' and oldspot.quality != 'B':
                             found = False
                             delay = 9999
                             for ve7ccspot in FIFO2:
-                                if oldspot.callsign == ve7ccspot.callsign and abs(oldspot.qrg - ve7ccspot.qrg) <= 0.5:
+                                if oldspot.callsign == ve7ccspot.callsign and abs(oldspot.qrg - ve7ccspot.qrg) < 0.4:
                                     dc = round((ve7ccspot.timestamp - oldspot.timestamp).total_seconds(), 1)
                                     found = True;
                                     if dc > 0 and dc < delay:
                                         delay = dc
                             if not found:
-                                fifo1duration = round((datetime.utcnow() - oldspot.timestamp).total_seconds(), 0)
-                                print(f'RBN spot NOT FOUND in VE7CC feed after %5.1fs    ==> %s' % (fifo1duration, oldspot.toString()))
+                                print(f'RBN spot NOT FOUND in VE7CC feed after %3ds    ==> %s' % (SIZE1, oldspot.toString()))
                             else:
-                                if delay == 9999: # If delay is negative, this is a duplicates spot, not propagated by VE7CC
-                                    print(f'RBN spot found in VE7CC feed (suppressed)        ==> %s' % oldspot.toString()) 
-                                else:
-                                    print(f'RBN spot found in VE7CC feed after %4.1fs         ==> %s' % (delay, oldspot.toString())) 
+                                if delay != 9999:
+                                    print(f'RBN spot found in VE7CC feed after %4.1fs       ==> %s' % (delay, oldspot.toString())) 
+                                else: # If delay is negative, this is a duplicates spot, not propagated by VE7CC
+                                    print(f'RBN spot found in VE7CC feed (dupe)            ==> %s' % oldspot.toString()) 
+                            # Remove all similar spots 
+                            for spot in FIFO1:
+                                if spot.callsign == oldspot.callsign and abs(spot.qrg - oldspot.qrg) < 0.4:
+                                    FIFO1.remove(spot)
                     if not fifo1filled:
-                        timeleft = int(SIZE1 - (datetime.utcnow() - FIFO1[0].timestamp).total_seconds())
-                        if timeleft % 10 == 0 and timeleft != lasttime:
+                        timeleft = int(SIZE1 - since(FIFO1[0].timestamp))
+                        if timeleft % 10 == 0 and timeleft != 0 and timeleft != lasttime:
                             print(f'Filling pipeline, analysis will start in %ds...' % timeleft)
                             lasttime = timeleft
                     if not alerted:
@@ -111,7 +116,7 @@ class ve7cc(threading.Thread):
                     spot = Spot(line, node)
 
                     FIFO2.append(spot)
-                    while (datetime.utcnow() - FIFO2[0].timestamp).total_seconds() > SIZE2:
+                    while since(FIFO2[0].timestamp) > SIZE2:
                         FIFO2.pop(0)
 
                     if (not alerted):

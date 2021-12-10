@@ -8,7 +8,7 @@ import telnetlib
 from datetime import datetime
 
 MYCALL = 'SM7IUN-6'
-SIZE1 = 120 # "RBN" buffer size in seconds
+SIZE1 = 60 # "RBN" buffer size in seconds
 FIFO1 = [] # "RBN" buffer
 
 def contestband(freq):
@@ -44,7 +44,7 @@ if __name__ == '__main__':
     tw9pa.write(MYCALL.encode('ascii') + b'\n')
     tw9pa.write(b'set dx extension skimmerquality\n')
     fifo1filled = False
-    lasttime = 0
+    displayedtime = 0
 
     while True:
         try:
@@ -55,27 +55,25 @@ if __name__ == '__main__':
                 # While oldest spot is older than SIZE1, keep processing
                 while since(FIFO1[0].timestamp) >= SIZE1:
                     fifo1filled = True
-                    oldspot = FIFO1[0] # FIFO1[0] is the oldest spot, FIFO1[-1] the most recent
-                    FIFO1.pop(0) # Remove oldest spot from queue
+                    oldspot = FIFO1.pop(0) # Remove oldest spot from queue
                     # Only process ? spots that are on contest bands
                     if contestband(oldspot.qrg) and oldspot.quality == '?':
                         found = False
                         for w9paspot in FIFO1:
                             if oldspot.callsign == w9paspot.callsign and \
-                                    abs(oldspot.qrg - w9paspot.qrg) < 0.2 and w9paspot.quality == 'V':
+                                    abs(oldspot.qrg - w9paspot.qrg) < 0.4 and w9paspot.quality == 'V':
                                 found = True
                                 delay = round((w9paspot.timestamp - oldspot.timestamp).total_seconds(), 1)
                                 break
-
                         if not found:
                             print('%s: ? spot still not V after %3ds  ==> %s' % (node, SIZE1, oldspot.toString()))
                         else:
                             print('%s: ? spot became V after %4.1fs    ==> %s' % (node, delay, oldspot.toString()))
                 if not fifo1filled:
                     timeleft = int(SIZE1 - since(FIFO1[0].timestamp))
-                    if timeleft % 10 == 0 and timeleft != 0 and timeleft != lasttime:
+                    if timeleft % 10 == 0 and timeleft != 0 and timeleft != displayedtime:
                         print(f'Filling pipeline, analysis will start in %ds...' % timeleft)
-                        lasttime = timeleft
+                        displayedtime = timeleft
                 if not alerted:
                     print(node + " feed active")
                     alerted = True
