@@ -9,33 +9,18 @@ import telnetlib
 from datetime import datetime
 
 MYCALL = 'SM7IUN-7'
-SIZE1 = 256 # "RBN" buffer size
-SIZE2 = 1000 # VE7CC buffer size
+SIZE1 = 60 # "RBN" buffer size in seconds
+SIZE2 = 600 # VE7CC buffer size in seconds
 FIFO1 = [] # "RBN" buffer
 FIFO2 = [] # VE7CC buffer
 
 def contestband(freq):
-    if (freq >= 1800.0 and freq <= 2000.0):
-        return True
-    elif (freq >= 3500.0 and freq <= 3800.0):
-        return True
-    elif (freq >= 7000.0 and freq <= 7300.0):
-        return True
-    elif (freq >= 14000.0 and freq <= 14350.0):
-        return True
-    elif (freq >= 21000.0 and freq <= 21450.0):
-        return True
-    elif (freq >= 28000.0 and freq <= 29700.0):
-        return True
-    else:          
-        return False
-
-def wrap1(number):
-    return (number + SIZE1) % SIZE1
-    
-def wrap2(number):
-    return (number + SIZE2) % SIZE2
-    
+    bands = [(1800, 2000), (3500, 3800), (7000, 7300), (14000, 14350), (21000, 21450), (28000, 29700)]
+    for (lower, upper) in bands:
+        if freq >= lower and freq <= upper:
+            return True
+    return False
+   
 def modeisCW(line):
     if (re.match(".+ CW ", line)):
         return True
@@ -58,10 +43,13 @@ class w9pa(threading.Thread):
         node = 'W9PA-4'
 
         alerted = False
-        clxmsg = tw9pa.read_until(b'your call:').decode('latin-1')
+        ignored = tw9pa.read_until(b'your call:').decode('latin-1')
         sleep(1)
         tw9pa.write(MYCALL.encode('ascii') + b'\n')
         tw9pa.write(b'set dx extension skimmerquality\n')
+        fifo1filled = False
+        fifo1empty = True
+        lasttime = 0
         while True:
             try:
                 line = tw9pa.read_until(b'\n').decode('latin-1')
@@ -69,7 +57,7 @@ class w9pa(threading.Thread):
                     spot = Spot(line, node)
                     if contestband(spot.qrg) and spot.quality != 'C' and spot.quality != 'B':
                         # FIFO1[0] is the oldest spot, FIFO1[-1] the most recent
-                        if len(FIFO1) >= SIZE1:                           
+                        if fifo1filled:
                             oldspot = FIFO1[0]
                             fifo1duration = round((datetime.utcnow() - oldspot.timestamp).total_seconds(), 0)
                             found = False
@@ -82,18 +70,24 @@ class w9pa(threading.Thread):
                                         delay = dc
                             if not found:
                                 print(f'RBN spot NOT FOUND in VE7CC feed after %5.1fs    ==> %s' % (fifo1duration, oldspot.toString()))
+                                FIFO1.pop(0) # Remove spot to avoid it being reported multiple times
                             else:
                                 if delay == 9999:
                                     print(f'RBN spot found in VE7CC feed (duplicate)         ==> %s' % oldspot.toString()) 
                                 else:
                                     print(f'RBN spot found in VE7CC feed after %4.1fs         ==> %s' % (delay, oldspot.toString())) 
                         else:
-                            if (SIZE1 - len(FIFO1)) % 16 == 0:
-                                print(f'Filling pipeline, need {SIZE1 - len(FIFO1)} more spots from {node} before analysis can start...')
+                            if not fifo1empty:
+                                timeleft = int(SIZE1 - (datetime.utcnow() - FIFO1[0].timestamp).total_seconds())
+                                if timeleft % 10 == 0 and timeleft != lasttime:
+                                    print(f'Filling pipeline, analysis will start in %ds...' % timeleft)
+                                    lasttime = timeleft
                             
                         # Add spot to pipeline
                         FIFO1.append(spot)
-                        if len(FIFO1) > SIZE1: # Cap list at SIZE1
+                        fifo1empty = False
+                        while (datetime.utcnow() - FIFO1[0].timestamp).total_seconds() > SIZE1:
+                            fifo1filled = True
                             FIFO1.pop(0)
 
                         if not alerted:
@@ -115,7 +109,7 @@ class ve7cc(threading.Thread):
         node = 'VE7CC'
 
         alerted = False
-        clxmsg = tve7cc.read_until(b'your call:').decode('latin-1')
+        ignored = tve7cc.read_until(b'your call:').decode('latin-1')
         sleep(1)
         tve7cc.write(MYCALL.encode('ascii') + b'\n')
         while True:
@@ -125,7 +119,7 @@ class ve7cc(threading.Thread):
                     spot = Spot(line, node)
 
                     FIFO2.append(spot)
-                    if len(FIFO2) > SIZE2: # Cap list at SIZE2
+                    while (datetime.utcnow() - FIFO2[0].timestamp).total_seconds() > SIZE2:
                         FIFO2.pop(0)
 
                     if (not alerted):
