@@ -1,6 +1,5 @@
 #!/bin/python3
 
-import socket
 from time import sleep
 from spot import Spot
 import threading 
