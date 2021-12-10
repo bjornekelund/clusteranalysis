@@ -52,13 +52,13 @@ class w9pa(threading.Thread):
                 if line.upper().startswith('DX DE ') and modeisCW(line) and isskimmer(line):
                     # Add incoming spot to end of queue
                     FIFO1.append(Spot(line, node))
-                    # While oldest spot is older than SIZE1, process it
+                    # While oldest spot is older than SIZE1, keep processing
                     while (datetime.utcnow() - FIFO1[0].timestamp).total_seconds() >= SIZE1:
                         fifo1filled = True
                         oldspot = FIFO1[0] # FIFO1[0] is the oldest spot, FIFO1[-1] the most recent
                         FIFO1.pop(0) # Remove oldest spot from queue
                         # Only process ? spots that are on contest bands
-                        if contestband(oldspot.qrg) and oldspot.quality != '?':
+                        if contestband(oldspot.qrg) and oldspot.quality == '?':
                             found = False
                             for w9paspot in FIFO1:
                                 if oldspot.callsign == w9paspot.callsign and \
@@ -68,9 +68,9 @@ class w9pa(threading.Thread):
                                     break
 
                             if not found:
-                                print('%s: ? spot did not turn V       ==> %s' % (node, oldspot.toString()))
+                                print('%s: ? spot still not V after %3ds  ==> %s' % (node, SIZE1, oldspot.toString()))
                             else:
-                                print('%s: ? spot turned V after %4.1fs ==> %s' % (node, delay, qspot.toString()))
+                                print('%s: ? spot turned V after %4.1fs    ==> %s' % (node, delay, oldspot.toString()))
                     if not fifo1filled:
                         timeleft = int(SIZE1 - (datetime.utcnow() - FIFO1[0].timestamp).total_seconds())
                         if timeleft % 10 == 0 and timeleft != lasttime:
