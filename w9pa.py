@@ -32,7 +32,6 @@ def isskimmer(line):
 
 def since(time):
     return round((datetime.utcnow() - time).total_seconds(), 0) 
-
         
 if __name__ == '__main__':
     tw9pa = telnetlib.Telnet('dxc.w9pa.net', 7373, 5)
