@@ -1,6 +1,5 @@
 #!/bin/python3
 
-import socket
 from time import sleep
 from spot import Spot
 import threading
@@ -9,7 +8,7 @@ import telnetlib
 from datetime import datetime
 
 MYCALL = 'SM7IUN-7'
-SIZE1 = 60 # "RBN" buffer size in seconds
+SIZE1 = 120 # "RBN" buffer size in seconds
 SIZE2 = 600 # VE7CC buffer size in seconds
 FIFO1 = [] # "RBN" buffer
 FIFO2 = [] # VE7CC buffer
@@ -48,55 +47,48 @@ class w9pa(threading.Thread):
         tw9pa.write(MYCALL.encode('ascii') + b'\n')
         tw9pa.write(b'set dx extension skimmerquality\n')
         fifo1filled = False
-        fifo1empty = True
         lasttime = 0
         while True:
             try:
                 line = tw9pa.read_until(b'\n').decode('latin-1')
                 if line.upper().startswith('DX DE ') and modeisCW(line) and isskimmer(line):
-                    spot = Spot(line, node)
-                    if contestband(spot.qrg) and spot.quality != 'C' and spot.quality != 'B':
-                        # FIFO1[0] is the oldest spot, FIFO1[-1] the most recent
-                        if fifo1filled:
-                            oldspot = FIFO1[0]
-                            fifo1duration = round((datetime.utcnow() - oldspot.timestamp).total_seconds(), 0)
+                    # Add incoming spot to end of queue
+                    FIFO1.append(Spot(line, node))
+                    # While oldest spot is older than SIZE1, process it
+                    while (datetime.utcnow() - FIFO1[0].timestamp).total_seconds() >= SIZE1:
+                        fifo1filled = True
+                        oldspot = FIFO1[0] # FIFO1[0] is the oldest spot, FIFO1[-1] the most recent
+                        FIFO1.pop(0) # Remove oldest spot from queue
+                        # Only process spots that are on contest bands and not tagged B or C
+                        if contestband(oldspot.qrg) and oldspot.quality != 'C' and oldspot.quality != 'B':
                             found = False
                             delay = 9999
-                            for si2 in FIFO2:
-                                if oldspot.callsign == si2.callsign and abs(oldspot.qrg - si2.qrg) <= 0.5:
-                                    dc = round((si2.timestamp - oldspot.timestamp).total_seconds(), 1)
+                            for ve7ccspot in FIFO2:
+                                if oldspot.callsign == ve7ccspot.callsign and abs(oldspot.qrg - ve7ccspot.qrg) <= 0.5:
+                                    dc = round((ve7ccspot.timestamp - oldspot.timestamp).total_seconds(), 1)
                                     found = True;
                                     if dc > 0 and dc < delay:
                                         delay = dc
                             if not found:
+                                fifo1duration = round((datetime.utcnow() - oldspot.timestamp).total_seconds(), 0)
                                 print(f'RBN spot NOT FOUND in VE7CC feed after %5.1fs    ==> %s' % (fifo1duration, oldspot.toString()))
-                                FIFO1.pop(0) # Remove spot to avoid it being reported multiple times
                             else:
-                                if delay == 9999:
-                                    print(f'RBN spot found in VE7CC feed (duplicate)         ==> %s' % oldspot.toString()) 
+                                if delay == 9999: # If delay is negative, this is a duplicates spot, not propagated by VE7CC
+                                    print(f'RBN spot found in VE7CC feed (suppressed)        ==> %s' % oldspot.toString()) 
                                 else:
                                     print(f'RBN spot found in VE7CC feed after %4.1fs         ==> %s' % (delay, oldspot.toString())) 
-                        else:
-                            if not fifo1empty:
-                                timeleft = int(SIZE1 - (datetime.utcnow() - FIFO1[0].timestamp).total_seconds())
-                                if timeleft % 10 == 0 and timeleft != lasttime:
-                                    print(f'Filling pipeline, analysis will start in %ds...' % timeleft)
-                                    lasttime = timeleft
-                            
-                        # Add spot to pipeline
-                        FIFO1.append(spot)
-                        fifo1empty = False
-                        while (datetime.utcnow() - FIFO1[0].timestamp).total_seconds() > SIZE1:
-                            fifo1filled = True
-                            FIFO1.pop(0)
-
-                        if not alerted:
-                            print(node + " feed active")
-                            alerted = True
-            except Exception as e:
-            #except:
-                print(node + ' thread exception')
-                print(e)
+                    if not fifo1filled:
+                        timeleft = int(SIZE1 - (datetime.utcnow() - FIFO1[0].timestamp).total_seconds())
+                        if timeleft % 10 == 0 and timeleft != lasttime:
+                            print(f'Filling pipeline, analysis will start in %ds...' % timeleft)
+                            lasttime = timeleft
+                    if not alerted:
+                        print(node + " feed active")
+                        alerted = True
+            # except Exception as e:
+            except:
+                # print(node + ' thread exception')
+                # print(e)
                 exit(0)
     
 class ve7cc(threading.Thread):
