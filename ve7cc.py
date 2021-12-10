@@ -78,7 +78,7 @@ class w9pa(threading.Thread):
                                     print(f'RBN spot found in VE7CC feed after %4.1fs       ==> %s' % (delay, oldspot.toString())) 
                                 else: # If delay is negative, this is a duplicates spot, not propagated by VE7CC
                                     print(f'RBN spot found in VE7CC feed (dupe)            ==> %s' % oldspot.toString()) 
-                            # Remove all similar spots 
+                            # Remove all similar spots. This does not seem to work??
                             for spot in FIFO1:
                                 if spot.callsign == oldspot.callsign and abs(spot.qrg - oldspot.qrg) < 0.4:
                                     FIFO1.remove(spot)
