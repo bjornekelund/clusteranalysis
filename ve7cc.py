@@ -9,10 +9,8 @@ import telnetlib
 from datetime import datetime
  
 MYCALL = 'SM7IUN-7'
-SIZE1 = 1024 # "RBN" buffer size
-SIZE2 = 128 # VE7CC buffer size
-POINTER1 = 0 # "RBN" buffer pointer
-POINTER2 = 0 # VE7CC buffer pointer
+SIZE1 = 200 # "RBN" buffer size
+SIZE2 = 1000 # VE7CC buffer size
 FIFO1 = [] # "RBN" buffer
 FIFO2 = [] # VE7CC buffer
 
@@ -56,7 +54,7 @@ class w9pa(threading.Thread):
         threading.Thread.__init__(self)
         
     def run(self):
-        global FIFO1, FIFO2, POINTER1, POINTER2, SIZE1, SIZE2, tw9pa
+        global FIFO1, FIFO2, SIZE1, SIZE2, tw9pa
         node = 'W9PA-4'
 
         alerted = False
@@ -67,45 +65,45 @@ class w9pa(threading.Thread):
         while True:
             try:
                 line = tw9pa.read_until(b'\n').decode('latin-1')
-                #print(line)
-                if line.upper().startswith('DX DE ') and modeisCW(line) and isskimmer(line) and contestband(Spot(line, node).qrg):
+                if line.upper().startswith('DX DE ') and modeisCW(line) and isskimmer(line):
                     spot = Spot(line, node)
-                    # FIFO1[POINTER1] is the oldest spot, which will be overwritten
-                    oldspot = FIFO1[POINTER1]
-                    if not oldspot.empty:
-                        found = False
-                        delay = 999
-                        for i in range(0, SIZE2):
-                            if oldspot.callsign == FIFO2[i].callsign and abs(oldspot.qrg - FIFO2[i].qrg) <= 0.5:
-                                dc = round((FIFO2[i].timestamp - oldspot.timestamp).total_seconds(), 1) + 0.1
-                                if dc > 0 and dc < delay:
-                                    delay = dc
+                    if contestband(spot.qrg) and spot.quality != 'C' and spot.quality != 'B':
+                        # FIFO1[0] is the oldest spot, FIFO1[-1] the most recent
+                        if len(FIFO1) >= SIZE1:                           
+                            oldspot = FIFO1[0]
+                            fifo1duration = round((datetime.utcnow() - oldspot.timestamp).total_seconds(), 0)
+                            found = False
+                            delay = 9999
+                            for si2 in FIFO2:
+                                if oldspot.callsign == si2.callsign and abs(oldspot.qrg - si2.qrg) <= 0.5:
+                                    dc = round((si2.timestamp - oldspot.timestamp).total_seconds(), 1)
                                     found = True;
-                                    #break;
-                        if not found:
-                            oldage = round((datetime.utcnow() - oldspot.timestamp).total_seconds(), 1)
-                            print(f'RBN spot NOT FOUND in VE7CC feed after %5.1fs   ==> %s' % (oldage, oldspot.toString()))
-                            #for i in range(0, SIZE2):
-                            #    if not FIFO2[i].empty:
-                            #        print(f'{FIFO2[i].timestamp.strftime("%H:%M:%S")} - {FIFO2[i].callsign} @ {FIFO2[i].qrg}')
-                            #print()
+                                    if abs(dc) < delay:
+                                        delay = dc
+                            if not found:
+                                print(f'RBN spot NOT FOUND in VE7CC feed after %5.1fs    ==> %s' % (fifo1duration, oldspot.toString()))
+                            else:
+                                if delay < 0:
+                                    print(f'RBN spot found in VE7CC feed (duplicate)         ==> %s' % oldspot.toString()) 
+                                else:
+                                    print(f'RBN spot found in VE7CC feed after %4.1fs         ==> %s' % (delay, oldspot.toString())) 
                         else:
-                            print(f'RBN spot found in VE7CC feed after %4.1fs        ==> %s' % (delay, oldspot.toString())) 
-                    else:
-                        if (SIZE1 - POINTER1) % 32 == 0:
-                            print(f'Filling pipeline, need {SIZE1 - POINTER1} more spots from {node} before analysis can start...')
+                            if (SIZE1 - len(FIFO1)) % 16 == 0:
+                                print(f'Filling pipeline, need {SIZE1 - len(FIFO1)} more spots from {node} before analysis can start...')
                             
-                    # Add spot to pipeline
-                    #print(f'{node}: {spot.toString()}')
-                    FIFO1[POINTER1] = spot
-                    POINTER1 = wrap1(POINTER1 + 1)
-                    if not alerted:
-                        print(node + " feed active")
-                        alerted = True
-            # except Exception as e:
-            except:
-                # print(node + ' thread exception')
-                # print(e)
+                        # Add spot to pipeline
+                        #print(f'{node}: {spot.toString()}')
+                        FIFO1.append(spot)
+                        if len(FIFO1) > SIZE1: # Cap list at SIZE1
+                            FIFO1.pop(0)
+
+                        if not alerted:
+                            print(node + " feed active")
+                            alerted = True
+            except Exception as e:
+            #except:
+                print(node + ' thread exception')
+                print(e)
                 exit(0)
     
 class ve7cc(threading.Thread):
@@ -114,41 +112,27 @@ class ve7cc(threading.Thread):
         threading.Thread.__init__(self)
         
     def run(self):
-        global FIFO1, FIFO2, POINTER1, POINTER2, tve7cc
+        global FIFO1, FIFO2, tve7cc
         node = 'VE7CC'
 
         alerted = False
         clxmsg = tve7cc.read_until(b'your call:').decode('latin-1')
         sleep(1)
-        #print(colored(clxmsg, 'yellow'))
         tve7cc.write(MYCALL.encode('ascii') + b'\n')
         while True:
             try:
                 if tve7cc != None:
                     line = tve7cc.read_until(b'\n').decode('latin-1')
-                # print(line)
-                # print(f'CW={modeisCW(line)} skim={isskimmer(line)}')
-                if line.upper().startswith('DX DE ') and modeisCW(line) and isskimmer(line):
+                if line.upper().startswith('DX DE ') and modeisCW(line) and isskimmer(line) and contestband(Spot(line, node).qrg):
                     spot = Spot(line, node)
-                    #print(f'{node}: {spot.toString()}')
 
-                    FIFO2[POINTER2] = spot
-                    POINTER2 = wrap2(POINTER2 + 1)
+                    FIFO2.append(spot)
+                    if len(FIFO2) > SIZE2: # Cap list at SIZE2
+                        FIFO2.pop(0)
 
                     if (not alerted):
                         print(node + " feed active")
-                        alerted = True        
-                    
-                    ## Mark all similar spots in RBN feed as found 
-                    ## Delay the spot 12 spots to guarantee it has been included in RBN feed
-                    #chkspot = FIFO2[wrap2(POINTER2 - 12 - 1)]
-                    #if not chkspot.empty:
-                    #    for i in range(0, SIZE1):
-                    #        # print(f'Checking {FIFO1[i].toString()}')
-                    #        if chkspot.callsign == FIFO1[i].callsign and abs(chkspot.qrg - FIFO1[i].qrg) <= 0.5:
-                    #            # print(f'Hit {spot.toString()} = {FIFO1[i].toString()}')
-                    #            FIFO1[i].found = True
-
+                        alerted = True
             except:
             #except Exception as e:
                 #print(node + ' thread exception')
@@ -156,16 +140,7 @@ class ve7cc(threading.Thread):
                 exit(0)
 
 if __name__ == '__main__':
-    for i in range(SIZE1):
-        FIFO1.append(Spot('', ''))
-
-    for i in range(SIZE2):
-         FIFO2.append(Spot('', ''))
-        
-    print('Created array, opening telnet')
-
     tw9pa = telnetlib.Telnet('dxc.w9pa.net', 7373, 5)
-    #tw9pa = telnetlib.Telnet('telnet.reversebeacon.net', 7000, 5)
     tve7cc = telnetlib.Telnet('ve7cc.net')
 
     thread1 = w9pa()
@@ -175,8 +150,6 @@ if __name__ == '__main__':
     thread2 = ve7cc()
     thread2.start()
     print('Started VE7CC thread')
-
-    print('Wait for pipeline to fill up...')
 
 while True:
     try:
