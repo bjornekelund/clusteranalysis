@@ -8,8 +8,8 @@ import telnetlib
 from datetime import datetime
 
 MYCALL = 'SM7IUN-7'
-SIZE1 = 120 # "RBN" buffer size in seconds
-SIZE2 = 600 # VE7CC buffer size in seconds
+SIZE1 = 360 # "RBN" buffer size in seconds
+SIZE2 = 370 # VE7CC buffer size in seconds
 FIFO1 = [] # "RBN" buffer
 FIFO2 = [] # VE7CC buffer
 
@@ -19,7 +19,7 @@ def contestband(freq):
         if freq >= lower and freq <= upper:
             return True
     return False
-   
+
 def modeisCW(line):
     if (re.match(".+ CW ", line)):
         return True
@@ -33,13 +33,13 @@ def isskimmer(line):
         return False
 
 def since(time):
-    return round((datetime.utcnow() - time).total_seconds(), 0) 
+    return round((datetime.utcnow() - time).total_seconds(), 0)
 
 class w9pa(threading.Thread):
 
     def __init__(self):
         threading.Thread.__init__(self)
-        
+
     def run(self):
         global tw9pa
         node = 'W9PA-4'
@@ -75,7 +75,7 @@ class w9pa(threading.Thread):
                                 print(f'RBN spot NOT FOUND in VE7CC feed after %3ds    ==> %s' % (SIZE1, oldspot.toString()))
                             else:
                                 if delay != 9999:
-                                    print(f'RBN spot found in VE7CC feed after %4.1fs       ==> %s' % (delay, oldspot.toString())) 
+                                    print(f'RBN spot found in VE7CC feed after %5.1fs      ==> %s' % (delay, oldspot.toString())) 
                                 else: # If delay is negative, this is a duplicates spot, not propagated by VE7CC
                                     print(f'RBN spot found in VE7CC feed (dupe)            ==> %s' % oldspot.toString()) 
                             # Remove all similar spots. This does not seem to work??
@@ -95,12 +95,12 @@ class w9pa(threading.Thread):
                 # print(node + ' thread exception')
                 # print(e)
                 exit(0)
-    
+
 class ve7cc(threading.Thread):
 
     def __init__(self):
         threading.Thread.__init__(self)
-        
+
     def run(self):
         global tve7cc
         node = 'VE7CC'
@@ -134,8 +134,8 @@ if __name__ == '__main__':
 
     thread1 = w9pa()
     thread1.start()
-    print('Started W9PA thread')  
-    
+    print('Started W9PA thread')
+
     thread2 = ve7cc()
     thread2.start()
     print('Started VE7CC thread')
@@ -148,4 +148,3 @@ while True:
         tve7cc.close()
         print('\nDisconnected')
         exit(0)
-

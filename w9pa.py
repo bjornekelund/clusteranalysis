@@ -17,7 +17,7 @@ def contestband(freq):
         if freq >= lower and freq <= upper:
             return True
     return False
-   
+
 def modeisCW(line):
     if (re.match(".+ CW ", line)):
         return True
@@ -31,8 +31,8 @@ def isskimmer(line):
         return False
 
 def since(time):
-    return round((datetime.utcnow() - time).total_seconds(), 0) 
-        
+    return round((datetime.utcnow() - time).total_seconds(), 0)
+
 if __name__ == '__main__':
     tw9pa = telnetlib.Telnet('dxc.w9pa.net', 7373, 5)
 
