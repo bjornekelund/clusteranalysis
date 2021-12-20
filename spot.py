@@ -6,7 +6,6 @@ class Spot():
                  
     def __init__(self, line, node):
         colon = line.find(":")
-        period = line.find(".")
 
         self.txt = line
 

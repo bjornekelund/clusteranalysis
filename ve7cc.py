@@ -6,34 +6,13 @@ import threading
 import re
 import telnetlib
 from datetime import datetime
+from helpers import contestband, modeisCW, isskimmer, since
 
 MYCALL = 'SM7IUN-7'
 SIZE1 = 360 # "RBN" buffer size in seconds
 SIZE2 = 370 # VE7CC buffer size in seconds
 FIFO1 = [] # "RBN" buffer
 FIFO2 = [] # VE7CC buffer
-
-def contestband(freq):
-    bands = [(1800, 2000), (3500, 3800), (7000, 7300), (14000, 14350), (21000, 21450), (28000, 29700)]
-    for (lower, upper) in bands:
-        if freq >= lower and freq <= upper:
-            return True
-    return False
-
-def modeisCW(line):
-    if (re.match(".+ CW ", line)):
-        return True
-    else:
-        return False
-
-def isskimmer(line):
-    if (re.match(".+[A-Z]\-#:", line)):
-        return True
-    else:
-        return False
-
-def since(time):
-    return round((datetime.utcnow() - time).total_seconds(), 0)
 
 class w9pa(threading.Thread):
 
@@ -75,9 +54,9 @@ class w9pa(threading.Thread):
                                 print(f'RBN spot NOT FOUND in VE7CC feed after %3ds    ==> %s' % (SIZE1, oldspot.toString()))
                             else:
                                 if delay != 9999:
-                                    print(f'RBN spot found in VE7CC feed after %5.1fs      ==> %s' % (delay, oldspot.toString())) 
+                                    print(f'RBN spot found in VE7CC feed after %5.1fs      ==> %s' % (delay, oldspot.toString()))
                                 else: # If delay is negative, this is a duplicates spot, not propagated by VE7CC
-                                    print(f'RBN spot found in VE7CC feed (dupe)            ==> %s' % oldspot.toString()) 
+                                    print(f'RBN spot found in VE7CC feed (dupe)            ==> %s' % oldspot.toString())
                             # Remove all similar spots. This does not seem to work??
                             for spot in FIFO1:
                                 if spot.callsign == oldspot.callsign and abs(spot.qrg - oldspot.qrg) < 0.4:

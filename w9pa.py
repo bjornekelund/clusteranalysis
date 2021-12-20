@@ -2,7 +2,8 @@
 
 from time import sleep
 from spot import Spot
-import threading
+# import threading
+from helpers import contestband, modeisCW, isskimmer, since
 import re
 import telnetlib
 from datetime import datetime
@@ -11,27 +12,27 @@ MYCALL = 'SM7IUN-6'
 SIZE1 = 60 # "RBN" buffer size in seconds
 FIFO1 = [] # "RBN" buffer
 
-def contestband(freq):
-    bands = [(1800, 2000), (3500, 3800), (7000, 7300), (14000, 14350), (21000, 21450), (28000, 29700)]
-    for (lower, upper) in bands:
-        if freq >= lower and freq <= upper:
-            return True
-    return False
+# def contestband(freq):
+#     bands = [(1800, 2000), (3500, 3800), (7000, 7300), (14000, 14350), (21000, 21450), (28000, 29700)]
+#     for (lower, upper) in bands:
+#         if freq >= lower and freq <= upper:
+#             return True
+#     return False
 
-def modeisCW(line):
-    if (re.match(".+ CW ", line)):
-        return True
-    else:
-        return False
+# def modeisCW(line):
+#     if (re.match(".+ CW ", line)):
+#         return True
+#     else:
+#         return False
 
-def isskimmer(line):
-    if (re.match(".+[A-Z]\-#:", line)):
-        return True
-    else:
-        return False
+# def isskimmer(line):
+#     if (re.match(".+[A-Z]\-#: ", line)):
+#         return True
+#     else:
+#         return False
 
-def since(time):
-    return round((datetime.utcnow() - time).total_seconds(), 0)
+# def since(time):
+#     return round((datetime.utcnow() - time).total_seconds(), 0)
 
 if __name__ == '__main__':
     tw9pa = telnetlib.Telnet('dxc.w9pa.net', 7373, 5)
